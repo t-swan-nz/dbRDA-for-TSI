@@ -1,0 +1,182 @@
+---
+title: "Untitled"
+author: "Tom Swan"
+date: "08/07/2021"
+output: html_document
+---
+
+R script associated with distance based redundancy (dbRDAs) analyses for Aedes albopictus in the Torres Strait Islands. Models tested for an association between aircraft connectivity and genetic differentiation (pairwise Fst), conditioned by geographic distance. 
+
+
+```{r}
+library(tidyverse)
+library(psych)
+library(vegan)
+library("vcfR")
+library("vegan")
+library("poppr")
+library("pegas")
+library("ape")
+library("adegenet")
+library("ade4")
+library("MASS")
+library("PBSmapping")
+library("plotly")
+library("rgdal")
+library("installr")
+library("sp")
+library("genepop")
+library("geosphere")
+library("tidyverse")
+library("dplyr")
+library("plotly")
+library(ggplot2)
+library(reshape)
+library(ggpubr)
+```
+
+1. Import the Fst scores
+
+```{r}
+Fst_TSI_full <- read_csv(file = 'FST_scores_full.csv')
+
+#checking the dimensions. Yes this is the matrix with all islands
+dim(Fst_TSI_full)
+
+```
+
+2. convert the Fst scores to 'dist' format
+
+```{r}
+dist_Fst_TSI_full <- dist(Fst_TSI_full)
+str(dist_Fst_TSI_full)
+```
+
+3. Import the geographic coordinates for each island (just one pair of coorindates per island)
+
+```{r}
+
+TSI_22_whole_pops <- read.delim("tsi22_whole_pops.txt", header = F)
+
+str(TSI_22_whole_pops)
+
+row.names(TSI_22_whole_pops) <- TSI_22_whole_pops$V1
+TSI_22_whole_pops_rows <- TSI_22_whole_pops[,-1]
+
+#column binding the coordinates together
+
+TSI_22_whole_pops_rows <- cbind(TSI_22_whole_pops_rows$V2, TSI_22_whole_pops_rows$V3)
+
+str(TSI_22_whole_pops_rows)
+```
+4. Calculating the distance between coordinates (distm function) and converting this to 'dist' format
+
+```{r}
+#calculating the distance between points - regular distance
+dist_TSI_22_whole_pops_rows <- distm(TSI_22_whole_pops_rows)
+str(dist_TSI_22_whole_pops_rows)
+plot(dist_TSI_22_whole_pops_rows)
+
+#now converting this to 'dist' format
+dist_dist_TSI_22_whole_pops_rows <- dist(dist_TSI_22_whole_pops_rows)
+  str(dist_dist_TSI_22_whole_pops_rows)
+
+#converting this to dist
+
+#dist_TSI_22_whole_pops <- dist(TSI_22_whole_pops)
+#str(dist_TSI_22_whole_pops)
+#plot(dist_TSI_22_whole_pops)
+
+#str(dist_TSI_22_whole_pops)
+
+#USIND the distm values, converting this to dist
+
+```
+4. Converting the geographic distance to principle components to use in the dbRDA
+
+```{r}
+#TSI_geo_distance_pcs <- pcnm(dist_TSI_22_whole_pops_rows)
+
+#str(TSI_geo_distance_pcs)
+
+#using the distm to convert to PCs
+
+distm_TSI_geo_dist_pcs <- pcnm(dist_dist_TSI_22_whole_pops_rows)
+str(distm_TSI_geo_dist_pcs)
+
+
+```
+5. running the dbRDA with the distm for the geographical system
+
+```{r}
+#genetic is: dist_Fst_TSI_full
+#geographic is: distm_TSI_geo_dist_pcs
+
+distm_draft_TSI_genetic_geographic_with_pcs <- capscale(dist_Fst_TSI_full ~ distm_TSI_geo_dist_pcs$vectors[,1] + distm_TSI_geo_dist_pcs$vectors[,2] + distm_TSI_geo_dist_pcs$vectors[,3] + distm_TSI_geo_dist_pcs$vectors[,4] + distm_TSI_geo_dist_pcs$vectors[,5] + distm_TSI_geo_dist_pcs$vectors[,6] + distm_TSI_geo_dist_pcs$vectors[,7])
+
+set.seed(5)
+
+distm_genetic_geo <- anova.cca(distm_draft_TSI_genetic_geographic_with_pcs, by = "margin", permutations = 9999)
+#the same result as above
+
+p.adjust(distm_genetic_geo$`Pr(>F)`, method = "BH")
+
+#PCs 1 and 2 are suitable to condition the model. 
+
+#Not used - overall model testing all vectors with Fst:
+
+fst_geo_dist <- capscale(dist_Fst_TSI_full ~ distm_TSI_geo_dist_pcs$vectors)
+
+set.seed(5)
+
+fst_geo_dist_anova <- anova.cca(fst_geo_dist, by = "margin", permutations = 9999)
+
+```
+
+Running a dbRDA for the number of # plane landings on each island over a given year (July 2020 - July 2021)
+
+6. Import the plane data
+
+```{r}
+plane_landings_full <- read.csv(file = "plane_landings_full.csv")
+
+
+```
+
+7. Convert plane landings into 'dist'
+
+```{r}
+plane_landings_full_dist <- dist(plane_landings_full)
+str(plane_landings_full_dist)
+```
+
+8. Convert plane landings into PCs
+
+```{r}
+plane_landings_full_pcs <- pcnm(plane_landings_full_dist)
+```
+
+9. Run the dbRDA with genetic, plane landings full, conditioned by geo distance
+
+```{r}
+#this is the best model.
+dbRDAplane_landings <- capscale(dist_Fst_TSI_full ~ plane_landings_full_pcs$vectors + Condition(distm_TSI_geo_dist_pcs$vectors[c(1,2)]))
+
+set.seed(5)
+
+anova.cca(dbRDAplane_landings, by = "margin", permutations = 9999)
+
+#interesting - this is close to significance. How about if I remove the geographic distance conditioning?
+
+#try to get the sum of squares for just geo dist
+                       
+#with removing the conditioning by the geo
+no_geo_dbRDAplane_landings <- capscale(dist_Fst_TSI_full ~ plane_landings_full_pcs$vectors)
+
+set.seed(5)
+
+anova.cca(no_geo_dbRDAplane_landings, by = "margin", permutations = 9999)
+
+#removing the conditioning by the geo results in this being highly insignificant. 
+
+```

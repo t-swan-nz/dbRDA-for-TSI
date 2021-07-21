@@ -140,7 +140,6 @@ Running a dbRDA for the number of # plane landings on each island over a given y
 ```{r}
 plane_landings_full <- read.csv(file = "plane_landings_full.csv")
 
-
 ```
 
 7. Convert plane landings into 'dist'
@@ -160,11 +159,84 @@ plane_landings_full_pcs <- pcnm(plane_landings_full_dist)
 
 ```{r}
 #this is the best model.
-dbRDAplane_landings <- capscale(dist_Fst_TSI_full ~ plane_landings_full_pcs$vectors + Condition(distm_TSI_geo_dist_pcs$vectors[c(1,2)]))
+dbRDAplane_landings <- capscale(dist_Fst_TSI_full ~ plane_landings_full_pcs$vectors + Condition(distm_TSI_geo_dist_pcs$vectors[,c(1,2)]))
 
 set.seed(5)
 
 anova.cca(dbRDAplane_landings, by = "margin", permutations = 9999)
+
+#This is no where near close to significance. How about if I remove the geographic distance conditioning?
+
+#try to get the sum of squares for just geo dist
+                       
+#with removing the conditioning by the geo
+no_geo_dbRDAplane_landings <- capscale(dist_Fst_TSI_full ~ plane_landings_full_pcs$vectors)
+
+set.seed(5)
+
+anova.cca(no_geo_dbRDAplane_landings, by = "margin", permutations = 9999)
+
+#removing the conditioning by the geo results in this being highly insignificant. 
+
+```
+10. Condition the model by population size
+
+10a: Import the island population size
+```{r}
+#import the island population size
+
+island_population <- read.csv("island_population.csv")
+```
+
+11: Convert this island population to 'dist' format
+
+```{r}
+island_population_dist <- dist(island_population)
+str(island_population_dist)
+```
+
+12: Convert this 'dist' format to PCs
+
+```{r}
+island_population_pcs <- pcnm(island_population_dist)
+
+```
+
+13. Run the Fst against all the PCs for the population size
+
+```{r}
+distm_draft_TSI_genetic_population_with_pcs <- capscale(dist_Fst_TSI_full ~ island_population_pcs$vectors[,1] + island_population_pcs$vectors[,2] + island_population_pcs$vectors[,3] + island_population_pcs$vectors[,4] + island_population_pcs$vectors[,5] + island_population_pcs$vectors[,6] + island_population_pcs$vectors[,7] + island_population_pcs$vectors[,8]+ island_population_pcs$vectors[,9] + island_population_pcs$vectors[,10])
+
+set.seed(5)
+
+distm_genetic_populations <- anova.cca(distm_draft_TSI_genetic_population_with_pcs, by = "margin", permutations = 9999)
+
+distm_genetic_populations
+
+#it looks like they're 3 PCs which are significant. 
+
+p.adjust(distm_genetic_populations$`Pr(>F)`, method = "BH")
+
+#with the correction, there is only two PCs which are significant. That being, PC 3 and PC 9
+
+```
+
+14. Run the dbRDA with genetic ~ plane landings full, conditioned by both geo distance and population size
+
+```{r}
+#this is the best model.
+dbRDAplane_landings_geo_pop_conditions <- capscale(dist_Fst_TSI_full ~ plane_landings_full_pcs$vectors + Condition(distm_TSI_geo_dist_pcs$vectors[,c(1,2)],island_population_pcs$vectors[,c(3,9)]), distance = "Euclidean")
+
+set.seed(5)
+
+anova.cca(dbRDAplane_landings_geo_pop_conditions, by = "margin", permutations = 9999)
+
+dbRDAplane_landings_geo_pop_conditions <- capscale(dist_Fst_TSI_full ~ plane_landings_full_pcs$vectors + Condition(distm_TSI_geo_dist_pcs$vectors[,c(1,2)]))
+
+set.seed(5)
+
+anova.cca(dbRDAplane_landings_geo_pop_conditions, by = "margin", permutations = 9999)
+
 
 #interesting - this is close to significance. How about if I remove the geographic distance conditioning?
 
@@ -179,4 +251,13 @@ anova.cca(no_geo_dbRDAplane_landings, by = "margin", permutations = 9999)
 
 #removing the conditioning by the geo results in this being highly insignificant. 
 
+#Conditioning for both significant PCs Geography and Population Size
+
+set.seed(5)
+
+anova.cca(two_conditions_dbRDAplane_landings, by = "margin", permutations = 9999)
+
+
 ```
+
+

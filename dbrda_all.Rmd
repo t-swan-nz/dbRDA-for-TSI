@@ -33,6 +33,8 @@ library("plotly")
 library(ggplot2)
 library(reshape)
 library(ggpubr)
+library("vcfR")
+
 ```
 
 1. Import the Fst scores
@@ -225,39 +227,219 @@ p.adjust(distm_genetic_populations$`Pr(>F)`, method = "BH")
 
 ```{r}
 #this is the best model.
-dbRDAplane_landings_geo_pop_conditions <- capscale(dist_Fst_TSI_full ~ plane_landings_full_pcs$vectors + Condition(distm_TSI_geo_dist_pcs$vectors[,c(1,2)],island_population_pcs$vectors[,c(3,9)]), distance = "Euclidean")
 
-set.seed(5)
-
-anova.cca(dbRDAplane_landings_geo_pop_conditions, by = "margin", permutations = 9999)
+#anova.cca for just the geography conditions
 
 dbRDAplane_landings_geo_pop_conditions <- capscale(dist_Fst_TSI_full ~ plane_landings_full_pcs$vectors + Condition(distm_TSI_geo_dist_pcs$vectors[,c(1,2)]))
 
+plot(dbRDAplane_landings_geo_pop_conditions)
+screeplot(dbRDAplane_landings_geo_pop_conditions)
+
+
 set.seed(5)
 
 anova.cca(dbRDAplane_landings_geo_pop_conditions, by = "margin", permutations = 9999)
 
+#model with just the population conditioning
 
-#interesting - this is close to significance. How about if I remove the geographic distance conditioning?
-
-#try to get the sum of squares for just geo dist
-                       
-#with removing the conditioning by the geo
-no_geo_dbRDAplane_landings <- capscale(dist_Fst_TSI_full ~ plane_landings_full_pcs$vectors)
+dbRDAplane_landings_pop_conditions <- capscale(dist_Fst_TSI_full ~ plane_landings_full_pcs$vectors + Condition(island_population_pcs$vectors[,c(3,9)]))
 
 set.seed(5)
 
-anova.cca(no_geo_dbRDAplane_landings, by = "margin", permutations = 9999)
+anova.cca(dbRDAplane_landings_pop_conditions, by = "margin", permutations = 9999)
 
-#removing the conditioning by the geo results in this being highly insignificant. 
+```
 
-#Conditioning for both significant PCs Geography and Population Size
+Run the dbRDA with the boat data
+
+1. Import the seven island boat data
+
+```{r}
+seven_islands_boat <- read.csv("boat_data_seven_islands.csv", header = T)
+str(seven_islands_boat)
+```
+
+1b convert the boat data to dist format
+
+```{r}
+seven_islands_boat_dist <- dist(seven_islands_boat)
+str(seven_islands_boat_dist)
+  
+```
+
+1c converting the boat data to PCs
+
+```{r}
+seven_islands_boat_dist_pc <- pcnm(seven_islands_boat_dist)
+
+#this generated PCs 1 - 5
+```
+
+
+2. Filter the Fst for the 7 islands only (in the correct order)
+
+```{r}
+#fst is for the 7 islands
+#needs to be in the correct order.
+
+Fst_seven_islands <- read.csv("FST_seven_islands.csv", header = T)
+
+```
+
+3. Convert the Fst to 'dist' format
+
+```{r}
+dist_Fst_seven_islands <- dist(Fst_seven_islands)
+str(dist_Fst_TSI_full)
+
+```
+
+
+4. Filter the geo data for the 7 islands only (correct order)
+
+```{r}
+
+geo_seven_islands <- read.delim("geo_seven_islands.txt", header = F)
+
+str(geo_seven_islands)
+
+row.names(geo_seven_islands) <- geo_seven_islands$V1
+geo_seven_islands_rows <- geo_seven_islands[,-1]
+
+#column binding the coordinates together
+
+geo_seven_islands_rows <- cbind(geo_seven_islands_rows$V2, geo_seven_islands_rows$V3)
+
+str(geo_seven_islands_rows)
+
+```
+
+5. Convert filtered geo data into PCs
+
+```{r}
+#calculating the distance between points - regular distance
+dist_geo_seven_islands <- distm(geo_seven_islands_rows)
+str(dist_geo_seven_islands)
+plot(dist_geo_seven_islands)
+
+#now converting this to 'dist' format
+dist_dist_geo_seven_islands <- dist(dist_geo_seven_islands)
+  str(dist_dist_geo_seven_islands)
+
+```
+
+6. Converting filtered geo to PCs
+
+```{r}
+dist_geo_seven_islands_pc <- pcnm(dist_dist_geo_seven_islands)
+str(dist_geo_seven_islands_pc)
+#this converted to 3 PCs.
+```
+
+7. Importing the population size for each island
+
+7a: Import the island population size
+```{r}
+#import the island population size as a matrix
+
+seven_island_population <- read.csv("seven_island_population.csv")
+```
+
+11: Convert this island population to 'dist' format
+
+```{r}
+seven_island_population_dist <- dist(seven_island_population)
+str(seven_island_population_dist)
+```
+
+12: Convert this 'dist' format to PCs
+
+```{r}
+seven_island_population_dist_pcs <- pcnm(seven_island_population_dist)
+
+```
+
+11. Filter the Fst for the 7 islands only (in the correct order)
+
+```{r}
+#fst is for the 7 islands
+#needs to be in the correct order.
+
+Fst_seven_islands <- read.csv("FST_seven_islands.csv", header = T)
+
+```
+
+11b. Convert the Fst to 'dist' format
+
+```{r}
+dist_Fst_seven_islands <- dist(Fst_seven_islands)
+str(dist_Fst_TSI_full)
+
+```
+
+13. Run the Fst against all the PCs for the population size
+
+```{r}
+seven_islands_TSI_genetic_population_with_pcs <- capscale(dist_Fst_seven_islands ~ seven_island_population_dist_pcs$vectors[,1] + seven_island_population_dist_pcs$vectors[,2] + seven_island_population_dist_pcs$vectors[,3] + seven_island_population_dist_pcs$vectors[,4] + seven_island_population_dist_pcs$vectors[,5])
 
 set.seed(5)
 
-anova.cca(two_conditions_dbRDAplane_landings, by = "margin", permutations = 9999)
+distm_genetic_populations <- anova.cca(seven_islands_TSI_genetic_population_with_pcs, by = "margin", permutations = 9999)
+
+distm_genetic_populations
+
+#it looks like there is no effect of population size.
+```
 
 
+
+. Running the dbRDA for the boat data: Preliminary model Fst - geo distance
+
+```{r}
+
+prelim_dbRDAboat_Fst_geo <- capscale(dist_Fst_seven_islands ~ dist_geo_seven_islands_pc$vectors[,1] + dist_geo_seven_islands_pc$vectors[,2] + dist_geo_seven_islands_pc$vectors[,3] + dist_geo_seven_islands_pc$vectors[,4] + dist_geo_seven_islands_pc$vectors[,5])
+
+set.seed(5)
+
+boat_genetic_geo_sig_pcs <- anova.cca(prelim_dbRDAboat_Fst_geo, by = "margin", permutations = 9999)
+#the same result as above
+
+p.adjust(boat_genetic_geo_sig_pcs$`Pr(>F)`, method = "BH")
+
+#in this case, all of the PCs are highly insignificant. Still a result
+```
+
+8. Running the dbRDA with the boat data(i) not conditioned by geographic distance (ii) conditioned by geographic distance (iii) Conditioned only by population size.
+
+```{r}
+#genetic is: dist_Fst_seven_islands
+#geo is: dist_geo_seven_islands_pc$vectors
+#boat is: seven_islands_boat_dist_pc$vectors
+
+#try without conditioning the model. Looks like Schmidt used both with and w/o geo conditioning.
+
+dbrda_boatfull <- capscale(dist_Fst_seven_islands ~ seven_islands_boat_dist_pc$vectors)
+  
+genetic_boat <- anova.cca(dbrda_boatfull, by = "margin", permutations = 9999)
+#the same result as above
+
+genetic_boat
+
+p.adjust(genetic_boat$`Pr(>F)`, method = "BH")
+
+#conditioned by geographic distance
+
+dbrda_boatfull_conditioned_geo <- capscale(dist_Fst_seven_islands ~ seven_islands_boat_dist_pc$vectors + Condition(dist_geo_seven_islands_pc$vectors[,c(1,2)]))
+
+anova.cca(dbrda_boatfull_conditioned_geo, by = "margin", permutations = 9999)
+
+#conditioned with vectors from all islands
+
+#Conditioned only by population size - this is not significant at all.
+
+dbrda_boatfull_condition_population <- capscale(dist_Fst_seven_islands ~ seven_island_population_dist_pcs$vectors)
+
+anova.cca(dbrda_boatfull_condition_population, by = "margin", permutations = 9999)
 ```
 
 
